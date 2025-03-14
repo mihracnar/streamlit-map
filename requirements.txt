@@ -1,7 +1,5 @@
 streamlit>=1.22.0
-leafmap>=0.18.0
-geocoder
-ipywidgets
+folium>=0.14.0
+streamlit-folium>=0.13.0
 pandas
-geopandas
 requests
