@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"  # Yan paneli otomatik kapalı başlat
 )
 
-# CSS ile harita yüksekliğini ayarla ama Streamlit UI elementlerini koru
+# CSS ile harita yüksekliğini ayarla ve alt taraftaki beyaz alanı gider
 st.markdown("""
 <style>
     /* Harita içeriğini daha büyük yap ama UI elementlerini koruyarak */
@@ -22,16 +22,40 @@ st.markdown("""
         padding-top: 1rem;
         padding-right: 1rem;
         padding-left: 1rem;
-        padding-bottom: 1rem;
+        padding-bottom: 0rem;  /* Alt padding'i sıfırla */
     }
     
     /* Birazcık daha fazla alan için gereksiz içeriği sınırla */
     #MainMenu {visibility: visible;}
     footer {visibility: visible;}
     
-    /* Harita iframe'i için yükseklik */
+    /* Harita container'ı için yükseklik */
+    [data-testid="stSidebar"] + div [data-testid="column"] > div:has(iframe) {
+        height: calc(100vh - 100px);
+    }
+    
+    /* iframe için yükseklik ve diğer ayarlar */
     iframe {
-        min-height: 80vh !important;
+        min-height: 90vh !important;
+        height: 100% !important;
+        margin-bottom: -8px !important;  /* Alt boşluğu kaldır */
+        border: none !important;
+    }
+    
+    /* Alt bilgiyi daha kompakt hale getir */
+    footer {
+        margin-top: -10px;
+    }
+    
+    /* Harita altındaki caption stilini düzenle */
+    .stCaption {
+        margin-top: -15px !important;
+        margin-bottom: 0px !important;
+    }
+    
+    /* Son ayarlamalar */
+    [data-testid="stVerticalBlock"] {
+        gap: 0rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,8 +117,8 @@ with st.sidebar:
 container = st.container()
 
 with container:
-    # Haritanın üzerinde ince bir başlık
-    st.markdown("### 🗺️ İnteraktif Türkiye Haritası")
+    # Mini başlık (düzleştirilmiş)
+    st.markdown("<h3 style='margin-bottom: 0; margin-top: 0; font-size: 1rem;'>🗺️ İnteraktif Türkiye Haritası</h3>", unsafe_allow_html=True)
     
     # Harita altlığı ve attribution
     tiles_dict = {
@@ -223,7 +247,7 @@ with container:
     map_data = st_folium(
         m, 
         width=None,  # Genişliği otomatik olarak ayarla
-        height=600,   # Yüksekliği sabit tut, ama yeterince büyük
+        height=700,   # Yüksekliği artır
         returned_objects=["last_clicked"]
     )
 
@@ -231,6 +255,5 @@ with container:
     if map_data["last_clicked"]:
         st.caption(f"**Son tıklanan konum:** {map_data['last_clicked']['lat']:.6f}, {map_data['last_clicked']['lng']:.6f}")
 
-# Alt bilgi
-st.markdown("---")
-st.markdown("<div style='text-align: center; font-size: 0.8rem;'>© 2025 İnteraktif Harita | Powered by Streamlit & Folium</div>", unsafe_allow_html=True)
+# Alt bilgi (minimumda)
+st.markdown("<div style='text-align: center; font-size: 0.7rem; margin-top: -15px;'>© 2025 İnteraktif Harita</div>", unsafe_allow_html=True)
