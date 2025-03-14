@@ -1,40 +1,42 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+from folium.plugins import Fullscreen, MeasureControl, MousePosition, Draw
 
-# Sayfa konfigürasyonu - Tam Ekran için
+# Sayfa konfigürasyonu
 st.set_page_config(
-    page_title="Basit Tam Ekran Harita",
+    page_title="Tam Ekrana Yakın Harita",
     page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="collapsed"  # Yan paneli otomatik kapalı başlat
 )
 
-# CSS ile tam ekran efekti
+# CSS ile harita yüksekliğini ayarla ama Streamlit UI elementlerini koru
 st.markdown("""
 <style>
-    .main > div {
-        padding-top: 0rem;
-        padding-left: 0rem;
-        padding-right: 0rem;
+    /* Harita içeriğini daha büyük yap ama UI elementlerini koruyarak */
+    .stApp > header {
+        background-color: transparent;
     }
     .block-container {
         padding-top: 1rem;
-        padding-bottom: 0rem;
-        padding-left: 0rem;
-        padding-right: 0rem;
-        max-width: 100%;
+        padding-right: 1rem;
+        padding-left: 1rem;
+        padding-bottom: 1rem;
     }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
     
-    /* Folium harita yüksekliği */
-    [data-testid="stFormSubmitButton"] {display: none;}
+    /* Birazcık daha fazla alan için gereksiz içeriği sınırla */
+    #MainMenu {visibility: visible;}
+    footer {visibility: visible;}
+    
+    /* Harita iframe'i için yükseklik */
+    iframe {
+        min-height: 80vh !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Yan panel (gizlenebilir)
+# Yan panel oluştur
 with st.sidebar:
     st.title("🗺️ Harita Ayarları")
     
@@ -71,78 +73,164 @@ with st.sidebar:
     # Harita özellikleri
     st.subheader("Harita Özellikleri")
     
-    show_markers = st.checkbox("Şehir noktalarını göster", True)
+    show_markers = st.checkbox("Şehir noktaları", True)
+    show_measure = st.checkbox("Ölçüm araçları", True)
+    show_locate = st.checkbox("Konum bulma", True)
+    show_draw = st.checkbox("Çizim araçları", True)
+    
+    # Veri tipi (opsiyonel)
+    st.subheader("Veri")
+    data_type = st.radio(
+        "Veri türü:",
+        ["Şehirler", "Depremler", "Özel ilgi noktaları"]
+    )
     
     # Yenileme butonu
     if st.button("🔄 Haritayı Yenile", use_container_width=True):
         st.rerun()
 
-# Ana container - harita için
-st.markdown("## Tam Ekran Harita")
+# Ana içerik için tek bir sütun kullan
+container = st.container()
 
-# Harita altlığı ve attribution
-tiles_dict = {
-    "OpenStreetMap": {
-        "tiles": "OpenStreetMap",
-        "attr": "© OpenStreetMap contributors"
-    },
-    "CartoDB Dark": {
-        "tiles": "CartoDB dark_matter",
-        "attr": "© OpenStreetMap contributors, © CARTO"
-    },
-    "CartoDB Positron": {
-        "tiles": "CartoDB positron",
-        "attr": "© OpenStreetMap contributors, © CARTO"
-    },
-    "Stamen Terrain": {
-        "tiles": "Stamen Terrain",
-        "attr": "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL."
-    },
-    "Stamen Toner": {
-        "tiles": "Stamen Toner",
-        "attr": "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL."
+with container:
+    # Haritanın üzerinde ince bir başlık
+    st.markdown("### 🗺️ İnteraktif Türkiye Haritası")
+    
+    # Harita altlığı ve attribution
+    tiles_dict = {
+        "OpenStreetMap": {
+            "tiles": "OpenStreetMap",
+            "attr": "© OpenStreetMap contributors"
+        },
+        "CartoDB Dark": {
+            "tiles": "CartoDB dark_matter",
+            "attr": "© OpenStreetMap contributors, © CARTO"
+        },
+        "CartoDB Positron": {
+            "tiles": "CartoDB positron",
+            "attr": "© OpenStreetMap contributors, © CARTO"
+        },
+        "Stamen Terrain": {
+            "tiles": "Stamen Terrain",
+            "attr": "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL."
+        },
+        "Stamen Toner": {
+            "tiles": "Stamen Toner",
+            "attr": "Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL."
+        }
     }
-}
 
-# Harita oluştur
-m = folium.Map(
-    location=center_location,
-    zoom_start=zoom_level,
-    tiles=tiles_dict[map_type]["tiles"],
-    attr=tiles_dict[map_type]["attr"],
-    control_scale=True
-)
+    # Harita oluştur
+    m = folium.Map(
+        location=center_location,
+        zoom_start=zoom_level,
+        tiles=tiles_dict[map_type]["tiles"],
+        attr=tiles_dict[map_type]["attr"],
+        control_scale=True
+    )
 
-# Şehir markerları ekle
-if show_markers:
     # Türkiye'nin büyük şehirleri
     cities = {
         "Ankara": [39.925533, 32.866287],
         "İstanbul": [41.0082, 28.9784],
         "İzmir": [38.4192, 27.1287],
         "Antalya": [36.8969, 30.7133],
-        "Bursa": [40.1885, 29.0610]
+        "Bursa": [40.1885, 29.0610],
+        "Adana": [37.0000, 35.3213],
+        "Konya": [37.8746, 32.4932],
+        "Trabzon": [41.0027, 39.7168],
+        "Gaziantep": [37.0662, 37.3833],
+        "Diyarbakır": [37.9144, 40.2306]
     }
     
     # Her şehir için marker ekle
-    for city, coords in cities.items():
-        folium.Marker(
-            location=coords,
-            popup=city,
-            tooltip=city
+    if show_markers:
+        # Kümeleyici ekle
+        from folium.plugins import MarkerCluster
+        marker_cluster = MarkerCluster(name="Şehirler").add_to(m)
+        
+        for city, coords in cities.items():
+            # Popup içeriği
+            popup_text = f"""
+            <div style="font-family: Arial, sans-serif; width: 150px; text-align: center">
+                <h4 style="margin-bottom: 5px">{city}</h4>
+                <p style="margin-top: 0">{coords[0]:.4f}, {coords[1]:.4f}</p>
+            </div>
+            """
+            
+            # Marker ekle
+            folium.Marker(
+                location=coords,
+                popup=folium.Popup(popup_text, max_width=200),
+                tooltip=city,
+                icon=folium.Icon(icon="home", prefix="fa")
+            ).add_to(marker_cluster)
+
+    # Harita eklentileri
+    if show_measure:
+        MeasureControl(
+            position="bottomright",
+            primary_length_unit="kilometers",
+            secondary_length_unit="miles",
+            primary_area_unit="sqmeters",
+            secondary_area_unit="acres"
+        ).add_to(m)
+    
+    if show_locate:
+        from folium.plugins import LocateControl
+        LocateControl(
+            position="topright",
+            strings={"title": "Konumumu bul"},
+            icon="fa fa-map-marker"
+        ).add_to(m)
+    
+    if show_draw:
+        Draw(
+            position="topleft",
+            draw_options={
+                'polyline': True,
+                'polygon': True,
+                'rectangle': True,
+                'circle': True,
+                'marker': True,
+                'circlemarker': False
+            },
+            edit_options={
+                'poly': {'allowIntersection': False}
+            }
         ).add_to(m)
 
-# Tam ekran kontrolü ekle
-folium.plugins.Fullscreen(
-    position="topright",
-    title="Tam ekrana geç",
-    title_cancel="Tam ekrandan çık",
-    force_separate_button=True
-).add_to(m)
+    # Tam ekran kontrolü ekle
+    Fullscreen(
+        position="topright",
+        title="Tam ekrana geç",
+        title_cancel="Tam ekrandan çık",
+        force_separate_button=True
+    ).add_to(m)
 
-# Haritayı Streamlit'e göster
-map_data = st_folium(m, width=1400, height=700)
+    # Fare koordinatları
+    MousePosition(
+        position="bottomleft",
+        separator=" | ",
+        prefix="Koordinatlar:",
+        num_digits=6
+    ).add_to(m)
 
-# Harita etkileşimi bilgisi
-if map_data["last_clicked"]:
-    st.success(f"Son tıklanan konum: {map_data['last_clicked']['lat']:.4f}, {map_data['last_clicked']['lng']:.4f}")
+    # Katman kontrolü
+    folium.LayerControl(collapsed=False).add_to(m)
+
+    # Haritayı Streamlit'e göster
+    map_data = st_folium(
+        m, 
+        width=None,  # Genişliği otomatik olarak ayarla
+        height=600,   # Yüksekliği sabit tut, ama yeterince büyük
+        returned_objects=["last_clicked"]
+    )
+
+    # Harita etkileşimi bilgisi - tek satırda küçük bir bilgi
+    if map_data["last_clicked"]:
+        st.caption(f"**Son tıklanan konum:** {map_data['last_clicked']['lat']:.6f}, {map_data['last_clicked']['lng']:.6f}")
+
+# Alt bilgi
+st.markdown("---")
+st.markdown("<div style='text-align: center; font-size: 0.8rem;'>© 2025 İnteraktif Harita | Powered by Streamlit & Folium</div>", unsafe_allow_html=True)
