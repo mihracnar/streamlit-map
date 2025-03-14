@@ -1,235 +1,198 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
 import leafmap.leafmap as leafmap
-import pandas as pd
-import os
 
-# Sayfa konfigürasyonu
+# Sayfa konfigürasyonu - Tam Ekran için
 st.set_page_config(
-    page_title="Leafmap Harita Uygulaması",
+    page_title="Tam Ekran Leafmap",
     page_icon="🗺️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # Yan paneli otomatik kapalı başlat
 )
 
-# Başlık
-st.title("🗺️ Leafmap Harita Uygulaması")
-
-# İki panel oluştur
-col1, col2 = st.columns([1, 2])
-
-# Parametre ve ayarlar için sol panel
-with col1:
-    st.markdown("## Harita Ayarları")
-    
-    # Harita tipi seçimi
-    basemap = st.selectbox(
-        "Harita türü seçin:",
-        options=[
-            "ROADMAP", "SATELLITE", "TERRAIN", "HYBRID", 
-            "OpenStreetMap", "CartoDB.Positron", "CartoDB.DarkMatter",
-            "Stamen.Terrain", "Stamen.Toner", "Stamen.Watercolor",
-            "ESRI.WorldTopoMap", "ESRI.WorldImagery"
-        ],
-        index=4  # OpenStreetMap varsayılan
-    )
-    
-    # Zoom seviyesi
-    zoom_level = st.slider("Zoom seviyesi:", 1, 18, 6)
-    
-    # Harita yüksekliği
-    height = st.slider("Harita yüksekliği (piksel):", 300, 1000, 650)
-    
-    # Harita özellikleri
-    st.markdown("## Harita Özellikleri")
-    
-    add_google_map = st.checkbox("Google Maps ekle", False)
-    add_minimap = st.checkbox("Mini harita ekle", True)
-    draw_export = st.checkbox("Çizim araçları", True)
-    scale_bar = st.checkbox("Ölçek çubuğu", True)
-    
-    # Veri ekleme seçenekleri
-    st.markdown("## Veri Seçenekleri")
-    
-    data_option = st.radio(
-        "Veri kaynağı:",
-        ["Önceden tanımlı veriler", "CSV yükle", "Çevrimiçi veriler", "Hiçbiri"]
-    )
-    
-    if data_option == "Önceden tanımlı veriler":
-        data_layer = st.selectbox(
-            "Veri katmanı:",
-            ["Ülke sınırları", "Eyalet sınırları", "Nüfus yoğunluğu", "Depremler"]
-        )
-        
-        if data_layer == "Ülke sınırları":
-            selected_region = st.multiselect(
-                "Ülkeler:",
-                ["Turkey", "United States", "Germany", "France", "Italy", "Spain", "China", "Japan"]
-            )
-    
-    elif data_option == "CSV yükle":
-        file_format = st.radio("Dosya formatı:", ["CSV", "GeoJSON", "Shapefile"], horizontal=True)
-        uploaded_file = st.file_uploader(f"{file_format} dosyası yükleyin", type=["csv", "geojson", "shp"] if file_format == "Shapefile" else [file_format.lower()])
-        if uploaded_file is not None:
-            st.success(f"{file_format} dosyası yüklendi!")
-    
-    elif data_option == "Çevrimiçi veriler":
-        online_source = st.selectbox(
-            "Veri kaynağı:",
-            ["USGS Depremler", "NASA GIBS", "NOAA Hava Durumu", "OpenStreetMap"]
-        )
-        
-        if online_source == "USGS Depremler":
-            eq_days = st.radio("Zaman aralığı:", ["1 gün", "7 gün", "30 gün"], horizontal=True)
-            eq_mag = st.slider("Min. büyüklük:", 2.5, 8.0, 4.5, 0.5)
-    
-    # Harita aktif durumu için bir hızlı erişim linki
-    st.markdown("## Harita İşlemleri")
-    
-    if st.button("🔄 Haritayı Sıfırla", use_container_width=True):
-        st.experimental_rerun()
-    
-    if st.button("💾 Haritayı Kaydet", use_container_width=True):
-        st.session_state.save_map = True
-
-# Harita için sağ panel
-with col2:
-    # Harita oluştur
-    m = leafmap.Map(
-        center=[39.925533, 32.866287],  # Ankara
-        zoom=zoom_level,
-        height=height
-    )
-    
-    # Harita özellikleri
-    try:
-        # Basemap değiştir
-        if basemap in ["ROADMAP", "SATELLITE", "TERRAIN", "HYBRID"]:
-            m.add_basemap("Google " + basemap)
-        else:
-            m.add_basemap(basemap)
-            
-        # Ek özellikler
-        if add_google_map:
-            m.add_basemap("Google ROADMAP")
-            
-        if add_minimap:
-            m.add_minimap()
-            
-        if draw_export:
-            m.add_draw_control()
-            
-        if scale_bar:
-            m.scale_bar = True
-            
-        # Veri işlemleri
-        if data_option == "Önceden tanımlı veriler":
-            if data_layer == "Ülke sınırları" and selected_region:
-                for region in selected_region:
-                    m.add_geojson(f"https://raw.githubusercontent.com/johan/world.geo.json/master/countries/{region.lower()}.geo.json", layer_name=region)
-                    
-            elif data_layer == "Nüfus yoğunluğu":
-                m.add_heatmap(
-                    "https://raw.githubusercontent.com/giswqs/leafmap/master/examples/data/us_cities.geojson",
-                    "pop_max",
-                    layer_name="Nüfus Yoğunluğu"
-                )
-                
-            elif data_layer == "Depremler":
-                m.add_earthquake(5, 365, layer_name="Son 1 yıl M5.0+ Depremler")
-                
-        elif data_option == "CSV yükle" and uploaded_file is not None:
-            # Geçici dosya oluştur
-            file_path = f"temp.{file_format.lower()}"
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-                
-            # Dosya formatına göre işlem
-            if file_format == "CSV":
-                df = pd.read_csv(file_path)
-                # Koordinat sütunlarını kontrol et
-                lat_col = next((col for col in df.columns if col.lower() in ['lat', 'latitude', 'enlem']), None)
-                lon_col = next((col for col in df.columns if col.lower() in ['lon', 'long', 'longitude', 'boylam']), None)
-                
-                if lat_col and lon_col:
-                    m.add_points_from_xy(df, lon_col, lat_col, layer_name="CSV Veri Noktaları")
-                else:
-                    st.error("CSV'de enlem/boylam sütunları bulunamadı")
-                    
-            elif file_format == "GeoJSON":
-                m.add_geojson(file_path, layer_name="GeoJSON Verisi")
-                
-            elif file_format == "Shapefile":
-                m.add_shp(file_path, layer_name="Shapefile Verisi")
-                
-            # Geçici dosyayı temizle
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                
-        elif data_option == "Çevrimiçi veriler":
-            if online_source == "USGS Depremler":
-                # Days
-                if eq_days == "1 gün":
-                    period = 1
-                elif eq_days == "7 gün":
-                    period = 7
-                else:
-                    period = 30
-                
-                m.add_earthquake(eq_mag, period, layer_name=f"Son {eq_days} M{eq_mag}+ Depremler")
-                
-            elif online_source == "NASA GIBS":
-                m.add_tile_layer(
-                    url="https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2020-04-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
-                    name="NASA GIBS",
-                    attribution="NASA GIBS"
-                )
-                
-            elif online_source == "OpenStreetMap":
-                st.info("Bu işlev, OpenStreetMap API'sine istek gönderilmesini gerektirir ve genellikle sınırlı API anahtarları gerektirir.")
-        
-        # Haritayı göster
-        m.to_streamlit(height=height)
-        
-        # İsteğe bağlı harita kaydetme
-        if 'save_map' in st.session_state and st.session_state.save_map:
-            m.to_html("harita.html")
-            st.success("Harita 'harita.html' olarak kaydedildi!")
-            st.session_state.save_map = False
-            
-    except Exception as e:
-        st.error(f"Harita oluşturulurken bir hata oluştu: {e}")
-        st.info("Leafmap'in son sürümüyle uyumluluk sorunları olabilir. Bazı özellikler devre dışı bırakılacak.")
-        
-        # Yedek basit harita - hata durumunda
-        import folium
-        from streamlit_folium import folium_static
-        
-        f_map = folium.Map(
-            location=[39.925533, 32.866287],
-            zoom_start=zoom_level,
-            tiles=basemap.replace(".", " ") if "." in basemap else basemap
-        )
-        
-        folium.LayerControl().add_to(f_map)
-        folium_static(f_map, height=height)
-
-# Sayfa altı bilgileri
-st.markdown("---")
+# CSS ile tam ekran efekti
 st.markdown("""
-<div style="text-align: center">
-    <p>Bu uygulama <a href="https://github.com/giswqs/leafmap" target="_blank">leafmap</a> ve 
-    <a href="https://streamlit.io/" target="_blank">Streamlit</a> kullanılarak geliştirilmiştir.</p>
-</div>
+<style>
+    .main > div {
+        padding-top: 0rem;
+        padding-left: 0rem;
+        padding-right: 0rem;
+    }
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+        padding-left: 0rem;
+        padding-right: 0rem;
+        max-width: 100%;
+    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Leafmap yüksekliği */
+    iframe {
+        height: 96vh !important;
+        width: 100% !important;
+    }
+    
+    .stButton button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    /* Kontrol paneli */
+    .control-panel {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        background-color: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        max-width: 300px;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-# Bağımlılık bilgileri
-with st.expander("Uygulama Hakkında Bilgiler"):
-    st.code("""
-    # Bu uygulamanın bağımlılıkları:
-    streamlit>=1.11.0
-    leafmap>=0.10.0
-    pandas
+# Basemap seçenekleri
+basemap_options = [
+    "OpenStreetMap",
+    "SATELLITE",
+    "ROADMAP",
+    "TERRAIN",
+    "HYBRID",
+    "CartoDB.Positron",
+    "CartoDB.DarkMatter",
+    "Stamen.Terrain",
+    "Stamen.Toner",
+    "Esri.WorldImagery"
+]
+
+# Yan panel (gizlenebilir)
+with st.sidebar:
+    st.title("🗺️ Harita Ayarları")
     
-    # requirements.txt dosyanızda bu paketlerin belirtildiğinden emin olun
-    """)
+    # Basemap seçimi
+    basemap = st.selectbox("Harita Türü:", basemap_options, index=0)
+    
+    # Zoom seviyesi
+    zoom = st.slider("Zoom Seviyesi:", 1, 20, 6)
+    
+    # Ek Katmanlar
+    st.subheader("Katmanlar")
+    show_dem = st.checkbox("Yükseklik Modeli", False)
+    show_buildings = st.checkbox("Binalar", False)
+    show_labels = st.checkbox("Yer Adları", True)
+    
+    # Ölçüm araçları
+    st.subheader("Araçlar")
+    measurement = st.checkbox("Ölçüm Araçları", True)
+    drawing = st.checkbox("Çizim Araçları", True)
+    fullscreen = st.checkbox("Tam Ekran Kontrolü", True)
+    layercontrol = st.checkbox("Katman Kontrolü", True)
+    
+    # Veri ekleme
+    st.subheader("Veri")
+    data_option = st.radio(
+        "Veri Kaynağı:",
+        ["Yok", "Depremler", "Ülke Sınırları", "3D Terrain"]
+    )
+    
+    if data_option == "Depremler":
+        days = st.slider("Son kaç gün:", 1, 30, 7)
+        magnitude = st.slider("Min büyüklük:", 2.5, 8.0, 4.5, 0.5)
+    
+    elif data_option == "Ülke Sınırları":
+        country = st.selectbox(
+            "Ülke:",
+            ["Turkey", "United States", "Germany", "France", "Italy", "Spain", "Japan", "China"]
+        )
+    
+    elif data_option == "3D Terrain":
+        exaggeration = st.slider("Yükseltme faktörü:", 1, 10, 3)
+    
+    # Haritayı sıfırla
+    if st.button("🔄 Haritayı Sıfırla", use_container_width=True):
+        st.experimental_rerun()
+
+# Harita container - Tam ekran için
+map_container = st.container()
+
+with map_container:
+    # Leafmap haritası
+    m = leafmap.Map(
+        center=[39.925533, 32.866287],  # Ankara
+        zoom=zoom,
+        draw_control=drawing,
+        measure_control=measurement,
+        fullscreen_control=fullscreen,
+        search_control=False,
+        scale=True,
+        attribution_control=True
+    )
+    
+    # Basemap'i ayarla
+    if basemap in ["SATELLITE", "ROADMAP", "TERRAIN", "HYBRID"]:
+        m.add_basemap(f"Google {basemap}")
+    else:
+        m.add_basemap(basemap)
+    
+    # Ek katmanlar
+    if show_dem:
+        m.add_basemap("OpenTopoMap")
+    
+    if show_labels and not "Google" in basemap and not "Stamen" in basemap:
+        m.add_basemap("CartoDB.PositronOnlyLabels")
+    
+    if show_buildings:
+        m.add_cog_layer(
+            "https://ecmwf-ara-processing.s3.amazonaws.com/ecmwf_processed/c3s/building-heights/global/2018/global_building_heights.tif", 
+            name="Global Building Heights"
+        )
+    
+    # Verileri Ekle
+    if data_option == "Depremler":
+        m.add_earthquake(magnitude, days, name=f"M{magnitude}+ Son {days} Gün Depremler")
+    
+    elif data_option == "Ülke Sınırları":
+        m.add_geojson(
+            f"https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+            layer_name="Ülke Sınırları",
+            style={
+                "color": "blue",
+                "weight": 2,
+                "fillOpacity": 0.1
+            },
+            hover_style={
+                "fillOpacity": 0.7,
+                "fillColor": "yellow"
+            }
+        )
+    
+    elif data_option == "3D Terrain":
+        m.add_3d_terrain(exaggeration=exaggeration)
+    
+    # Katman kontrolü
+    if layercontrol:
+        m.add_layer_control()
+    
+    # Tam ekran harita
+    m.to_streamlit(height=800)
+
+# Mini panel üstte sağda (opsiyonel)
+st.markdown(
+    f"""
+    <div class="control-panel">
+        <h4>Harita Durumu:</h4>
+        <p>Konum: Ankara, Türkiye</p>
+        <p>Zoom: {zoom}</p>
+        <p>Harita: {basemap}</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
