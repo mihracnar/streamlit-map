@@ -255,5 +255,6 @@ with container:
     if map_data["last_clicked"]:
         st.caption(f"**Son tıklanan konum:** {map_data['last_clicked']['lat']:.6f}, {map_data['last_clicked']['lng']:.6f}")
 
+
 # Alt bilgi (minimumda)
 st.markdown("<div style='text-align: center; font-size: 0.7rem; margin-top: -15px;'>© 2025 İnteraktif Harita</div>", unsafe_allow_html=True)
