@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
 import leafmap.leafmap as leafmap
 
 # Sayfa konfigürasyonu - Tam Ekran için
@@ -31,7 +30,7 @@ st.markdown("""
     
     /* Leafmap yüksekliği */
     iframe {
-        height: 96vh !important;
+        height: 95vh !important;
         width: 100% !important;
     }
     
@@ -86,7 +85,6 @@ with st.sidebar:
     # Ek Katmanlar
     st.subheader("Katmanlar")
     show_dem = st.checkbox("Yükseklik Modeli", False)
-    show_buildings = st.checkbox("Binalar", False)
     show_labels = st.checkbox("Yer Adları", True)
     
     # Ölçüm araçları
@@ -100,7 +98,7 @@ with st.sidebar:
     st.subheader("Veri")
     data_option = st.radio(
         "Veri Kaynağı:",
-        ["Yok", "Depremler", "Ülke Sınırları", "3D Terrain"]
+        ["Yok", "Depremler", "Ülke Sınırları"]
     )
     
     if data_option == "Depremler":
@@ -113,86 +111,75 @@ with st.sidebar:
             ["Turkey", "United States", "Germany", "France", "Italy", "Spain", "Japan", "China"]
         )
     
-    elif data_option == "3D Terrain":
-        exaggeration = st.slider("Yükseltme faktörü:", 1, 10, 3)
-    
     # Haritayı sıfırla
     if st.button("🔄 Haritayı Sıfırla", use_container_width=True):
         st.experimental_rerun()
 
-# Harita container - Tam ekran için
+# Ana container - harita için
 map_container = st.container()
 
 with map_container:
-    # Leafmap haritası
-    m = leafmap.Map(
-        center=[39.925533, 32.866287],  # Ankara
-        zoom=zoom,
-        draw_control=drawing,
-        measure_control=measurement,
-        fullscreen_control=fullscreen,
-        search_control=False,
-        scale=True,
-        attribution_control=True
-    )
-    
-    # Basemap'i ayarla
-    if basemap in ["SATELLITE", "ROADMAP", "TERRAIN", "HYBRID"]:
-        m.add_basemap(f"Google {basemap}")
-    else:
-        m.add_basemap(basemap)
-    
-    # Ek katmanlar
-    if show_dem:
-        m.add_basemap("OpenTopoMap")
-    
-    if show_labels and not "Google" in basemap and not "Stamen" in basemap:
-        m.add_basemap("CartoDB.PositronOnlyLabels")
-    
-    if show_buildings:
-        m.add_cog_layer(
-            "https://ecmwf-ara-processing.s3.amazonaws.com/ecmwf_processed/c3s/building-heights/global/2018/global_building_heights.tif", 
-            name="Global Building Heights"
+    try:
+        # Leafmap haritası oluştur
+        m = leafmap.Map(
+            center=[39.925533, 32.866287],  # Ankara
+            zoom=zoom,
+            draw_control=drawing,
+            measure_control=measurement,
+            fullscreen_control=fullscreen,
+            scale=True,
+            attribution_control=True
         )
-    
-    # Verileri Ekle
-    if data_option == "Depremler":
-        m.add_earthquake(magnitude, days, name=f"M{magnitude}+ Son {days} Gün Depremler")
-    
-    elif data_option == "Ülke Sınırları":
-        m.add_geojson(
-            f"https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
-            layer_name="Ülke Sınırları",
-            style={
-                "color": "blue",
-                "weight": 2,
-                "fillOpacity": 0.1
-            },
-            hover_style={
-                "fillOpacity": 0.7,
-                "fillColor": "yellow"
-            }
-        )
-    
-    elif data_option == "3D Terrain":
-        m.add_3d_terrain(exaggeration=exaggeration)
-    
-    # Katman kontrolü
-    if layercontrol:
-        m.add_layer_control()
-    
-    # Tam ekran harita
-    m.to_streamlit(height=800)
-
-# Mini panel üstte sağda (opsiyonel)
-st.markdown(
-    f"""
-    <div class="control-panel">
-        <h4>Harita Durumu:</h4>
-        <p>Konum: Ankara, Türkiye</p>
-        <p>Zoom: {zoom}</p>
-        <p>Harita: {basemap}</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        
+        # Basemap'i ayarla
+        if basemap in ["SATELLITE", "ROADMAP", "TERRAIN", "HYBRID"]:
+            m.add_basemap(f"Google {basemap}")
+        else:
+            m.add_basemap(basemap)
+        
+        # Ek katmanlar
+        if show_dem:
+            m.add_basemap("OpenTopoMap")
+        
+        if show_labels and not "Google" in basemap and not "Stamen" in basemap:
+            m.add_basemap("CartoDB.PositronOnlyLabels")
+        
+        # Verileri Ekle
+        if data_option == "Depremler":
+            m.add_earthquake(magnitude, days, name=f"M{magnitude}+ Son {days} Gün Depremler")
+        
+        elif data_option == "Ülke Sınırları":
+            m.add_geojson(
+                f"https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+                layer_name="Ülke Sınırları",
+                style={
+                    "color": "blue",
+                    "weight": 2,
+                    "fillOpacity": 0.1
+                },
+                hover_style={
+                    "fillOpacity": 0.7,
+                    "fillColor": "yellow"
+                }
+            )
+        
+        # Katman kontrolü
+        if layercontrol:
+            m.add_layer_control()
+        
+        # Tam ekran harita
+        m.to_streamlit(height=800)
+        
+    except Exception as e:
+        st.error(f"Leafmap hatası: {e}")
+        st.info("Lütfen leafmap paketinin yüklü olduğundan emin olun: pip install leafmap")
+        
+        # Yedek çözüm olarak mesaj göster
+        st.markdown("""
+        <div style="text-align: center; padding: 50px; background-color: #f8f9fa; border-radius: 10px;">
+            <h2>Leafmap yüklenemedi</h2>
+            <p>Leafmap kütüphanesinin kurulumu için terminal veya komut satırına şunu yazın:</p>
+            <code>pip install leafmap</code>
+            <p>veya requirements.txt dosyanıza "leafmap" ekleyin.</p>
+        </div>
+        """, unsafe_allow_html=True)
