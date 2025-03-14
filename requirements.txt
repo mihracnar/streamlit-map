@@ -2,6 +2,6 @@ streamlit>=1.22.0
 leafmap>=0.18.0
 geocoder
 ipywidgets
-pandas,
+pandas
 geopandas
 requests
