@@ -225,7 +225,7 @@ elif data_option == 'Online veri kaynağı':
     
     elif api_option == 'Hava Durumu Verileri':
         st.subheader('Türkiye Şehirleri Hava Durumu')
-        st.info('Bu bölüm gerçek bir API entegrasyonu için hazırlanmıştır. Gerçek bir projede OpenWeatherMap, Visual Crossing veya diğer hava durumu API'leri kullanılabilir.')
+        st.info("Bu bölüm gerçek bir API entegrasyonu için hazırlanmıştır. Gerçek bir projede OpenWeatherMap, Visual Crossing veya diğer hava durumu API'leri kullanılabilir.")
         
         # Örnek şehirler
         cities = {
