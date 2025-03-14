@@ -36,7 +36,7 @@ st.markdown("""
     
     /* Harita iframe'in yerleşimini düzenle */
     iframe {
-        height: 100vh !important;
+        height: 80vh !important;
         width: 100% !important;
         border: none !important;
         margin: 0 !important;
