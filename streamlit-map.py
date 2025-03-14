@@ -6,58 +6,125 @@ import requests
 import json
 import random
 
-# Uygulama başlığı
-st.title('İnteraktif Harita Uygulaması')
-st.write('Bu uygulama ile coğrafi verileri görselleştirebilirsiniz.')
-
-# Yan menü oluşturma
-st.sidebar.header('Ayarlar')
-
-# Harita tipi seçeneği
-map_type = st.sidebar.selectbox(
-    'Harita tipi seçin:',
-    ('OpenStreetMap', 'Stamen Terrain', 'Stamen Toner', 'CartoDB positron')
+# Sayfa konfigürasyonu - Tam ekran için
+st.set_page_config(
+    page_title="İnteraktif Harita Uygulaması",
+    page_icon="🗺️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# Varsayılan konum (Türkiye için)
-default_location = [39.925533, 32.866287]  # Ankara
-
-# Başlangıç zoom seviyesi
-zoom_level = st.sidebar.slider('Zoom seviyesi', 1, 18, 6)
-
-# Kullanıcıdan konum seçimi
-location_option = st.sidebar.radio(
-    'Konum seçimi:',
-    ('Varsayılan konum (Ankara)', 'Kendi konumunuzu girin')
-)
-
-if location_option == 'Kendi konumunuzu girin':
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        lat = st.number_input('Enlem', value=default_location[0], format="%.6f")
-    with col2:
-        lon = st.number_input('Boylam', value=default_location[1], format="%.6f")
+# CSS ile tam ekran harita
+st.markdown("""
+<style>
+    .main > div {
+        padding-top: 0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .main .block-container {
+        max-width: 100%;
+        width: 100%;
+    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display:none;}
     
-    center_location = [lat, lon]
-else:
-    center_location = default_location
+    /* Harita container stilini düzenle */
+    .folium-map {
+        width: 100%;
+        height: 90vh;
+        z-index: 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Veri ekleme seçeneği
-data_option = st.sidebar.radio(
-    'Veri seçimi:',
-    ('Örnek noktalar', 'Kendi verilerinizi yükleyin', 'Online veri kaynağı', 'Hiç veri yok')
-)
+# Uygulamanın başlığı - Daha kısa ve minimal tutuyoruz
+st.title('İnteraktif Web Harita Uygulaması')
+
+# Yan menü
+with st.sidebar:
+    st.header('Harita Ayarları')
+
+    # Harita tipi seçeneği
+    map_type = st.selectbox(
+        'Harita tipi:',
+        ('OpenStreetMap', 'Stamen Terrain', 'Stamen Toner', 'CartoDB positron')
+    )
+
+    # Varsayılan konum (Türkiye için)
+    default_location = [39.925533, 32.866287]  # Ankara
+
+    # Başlangıç zoom seviyesi
+    zoom_level = st.slider('Zoom seviyesi', 1, 18, 6)
+
+    # Kullanıcıdan konum seçimi
+    location_option = st.radio(
+        'Konum:',
+        ('Ankara (Varsayılan)', 'Kendi konumum')
+    )
+
+    if location_option == 'Kendi konumum':
+        col1, col2 = st.columns(2)
+        with col1:
+            lat = st.number_input('Enlem', value=default_location[0], format="%.6f")
+        with col2:
+            lon = st.number_input('Boylam', value=default_location[1], format="%.6f")
+        
+        center_location = [lat, lon]
+    else:
+        center_location = default_location
+
+    # Veri ekleme seçeneği
+    data_option = st.radio(
+        'Veri:',
+        ('Şehir Noktaları', 'Kendi Verilerim', 'API Verileri', 'Sadece Harita')
+    )
+
+    # Görünürlük ayarı
+    show_controls = st.checkbox('Harita kontrolleri', value=True)
+    
+    # Tam ekran butonu
+    if st.button('🔍 Gerçek Tam Ekran'):
+        st.markdown("""
+        <script>
+            var elem = document.documentElement;
+            function openFullscreen() {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+            }
+            openFullscreen();
+        </script>
+        """, unsafe_allow_html=True)
 
 # Harita oluşturma fonksiyonu
 def create_map(center, zoom, tiles):
-    m = folium.Map(location=center, zoom_start=zoom, tiles=tiles)
+    m = folium.Map(
+        location=center, 
+        zoom_start=zoom, 
+        tiles=tiles,
+        control_scale=True,
+        attributionControl=False if not show_controls else True,
+        zoomControl=show_controls
+    )
     return m
 
-# Haritayı başlat
+# Haritayı oluştur
 m = create_map(center_location, zoom_level, map_type)
 
 # Örnek veri oluştur
-if data_option == 'Örnek noktalar':
+if data_option == 'Şehir Noktaları':
     # Türkiye'nin büyük şehirleri
     cities = {
         'İstanbul': [41.0082, 28.9784],
@@ -86,13 +153,13 @@ if data_option == 'Örnek noktalar':
     # DataFrame oluştur
     df = pd.DataFrame(data)
     
-    # Veri ön izleme
-    st.subheader('Veri Önizleme')
-    st.dataframe(df)
+    # Mini veri paneli - daha kompakt ve soldaki haritaya bindirme
+    with st.expander("📊 Veri Tablosu", expanded=False):
+        st.dataframe(df, height=250)
     
     # Her şehir için marker ekle
     for _, row in df.iterrows():
-        # Marker boyutunu nüfusa göre ayarla (bir örnek olarak)
+        # Marker boyutunu nüfusa göre ayarla
         radius = (row['Nüfus'] / 15000000) * 25 + 5
         
         # Popup içeriği
@@ -106,63 +173,70 @@ if data_option == 'Örnek noktalar':
             location=[row['Enlem'], row['Boylam']],
             radius=radius,
             popup=popup_text,
+            tooltip=row['Şehir'],
             fill=True,
             fill_color='red',
             color='red',
             fill_opacity=0.6
         ).add_to(m)
 
-elif data_option == 'Kendi verilerinizi yükleyin':
-    st.sidebar.info('CSV dosyanızda "Şehir", "Enlem", "Boylam" sütunları olmalıdır.')
-    
-    uploaded_file = st.sidebar.file_uploader("CSV dosyanızı yükleyin", type=['csv'])
-    
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            
-            # Gerekli sütunları kontrol et
-            required_columns = ['Şehir', 'Enlem', 'Boylam']
-            if all(col in df.columns for col in required_columns):
-                # Veri ön izleme
-                st.subheader('Veri Önizleme')
-                st.dataframe(df)
+elif data_option == 'Kendi Verilerim':
+    with st.sidebar:
+        st.info('CSV dosyanızda "Şehir", "Enlem", "Boylam" sütunları olmalıdır.')
+        
+        uploaded_file = st.file_uploader("CSV dosyanızı yükleyin", type=['csv'])
+        
+        if uploaded_file is not None:
+            try:
+                df = pd.read_csv(uploaded_file)
                 
-                # Her nokta için marker ekle
-                for _, row in df.iterrows():
-                    popup_text = f"<b>{row['Şehir']}</b>"
+                # Gerekli sütunları kontrol et
+                required_columns = ['Şehir', 'Enlem', 'Boylam']
+                if all(col in df.columns for col in required_columns):
+                    # Veri ön izleme
+                    with st.expander("📊 Veri Tablosu", expanded=False):
+                        st.dataframe(df, height=250)
                     
-                    # Eğer ek sütunlar varsa, popup'a ekle
-                    for col in df.columns:
-                        if col not in required_columns:
-                            popup_text += f"<br>{col}: {row[col]}"
-                    
-                    # Marker ekle
-                    folium.Marker(
-                        location=[row['Enlem'], row['Boylam']],
-                        popup=popup_text
-                    ).add_to(m)
-            else:
-                st.error('CSV dosyanızda gerekli sütunlar eksik. "Şehir", "Enlem" ve "Boylam" sütunları olmalıdır.')
-        except Exception as e:
-            st.error(f'Dosya yüklenirken bir hata oluştu: {e}')
+                    # Her nokta için marker ekle
+                    for _, row in df.iterrows():
+                        popup_text = f"<b>{row['Şehir']}</b>"
+                        
+                        # Eğer ek sütunlar varsa, popup'a ekle
+                        for col in df.columns:
+                            if col not in required_columns:
+                                popup_text += f"<br>{col}: {row[col]}"
+                        
+                        # Marker ekle
+                        folium.Marker(
+                            location=[row['Enlem'], row['Boylam']],
+                            popup=popup_text,
+                            tooltip=row['Şehir']
+                        ).add_to(m)
+                else:
+                    st.error('CSV dosyanızda gerekli sütunlar eksik. "Şehir", "Enlem" ve "Boylam" sütunları olmalıdır.')
+            except Exception as e:
+                st.error(f'Dosya yüklenirken bir hata oluştu: {e}')
 
-elif data_option == 'Online veri kaynağı':
+elif data_option == 'API Verileri':
     # Online veri kaynağı seçimi
-    api_option = st.sidebar.selectbox(
-        'Veri kaynağı seçin:',
-        ('Deprem Verileri (Kandilli API)', 'Hava Durumu Verileri', 'OpenStreetMap POI Verileri')
-    )
+    with st.sidebar:
+        api_option = st.selectbox(
+            'Veri kaynağı:',
+            ('Deprem Verileri', 'Hava Durumu', 'İlgi Noktaları')
+        )
     
-    if api_option == 'Deprem Verileri (Kandilli API)':
-        st.subheader('Son Depremler (Kandilli Rasathanesi)')
+    if api_option == 'Deprem Verileri':
+        # Bir küçük bilgi kutusu ile deprem verilerini gösterebiliriz
+        info_col1, info_col2 = st.columns([1, 3])
+        with info_col1:
+            st.markdown("### 🌍 Depremler")
+        with info_col2:
+            st.markdown("Son 24 saat içindeki M2.5+ depremler")
         
         # API'den veri çekme işlemi
         try:
-            # Kandilli Rasathanesi'nin resmi API'si olmadığı için açık bir veri kaynağı kullanıyorum
-            # Bu örnek sadece gösterim amaçlıdır
             with st.spinner('Deprem verileri yükleniyor...'):
-                # Bu URL değişebilir veya kullanılamaz olabilir - gerçek projede doğru API kullanılmalıdır
+                # Gerçek projede doğru API kullanılmalıdır
                 url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson"
                 response = requests.get(url)
                 
@@ -185,8 +259,9 @@ elif data_option == 'Online veri kaynağı':
                     
                     df = pd.DataFrame(earthquakes)
                     
-                    # Veri ön izleme
-                    st.dataframe(df)
+                    # Veri ön izleme - mini ve açılır panel ile
+                    with st.expander("📊 Deprem Listesi", expanded=False):
+                        st.dataframe(df.sort_values(by='Büyüklük', ascending=False), height=300)
                     
                     # Depremleri haritada gösterme
                     for _, quake in df.iterrows():
@@ -211,22 +286,51 @@ elif data_option == 'Online veri kaynağı':
                             location=[quake['Enlem'], quake['Boylam']],
                             radius=quake['Büyüklük'] * 2,  # Büyüklük ile orantılı
                             popup=popup_text,
+                            tooltip=f"M{quake['Büyüklük']} - {quake['Yer']}",
                             fill=True,
                             fill_color=color,
                             color=color,
                             fill_opacity=0.7
                         ).add_to(m)
                     
-                    st.success(f"Toplam {len(df)} deprem görüntüleniyor")
+                    # Mini bilgi kutusu - sağ üst köşede
+                    stat_box = folium.Element('''
+                    <div style="
+                        position: fixed;
+                        top: 10px;
+                        right: 10px;
+                        z-index: 999;
+                        background-color: white;
+                        padding: 10px;
+                        border-radius: 5px;
+                        box-shadow: 0 0 10px rgba(0,0,0,0.3);
+                        font-family: Arial, sans-serif;
+                    ">
+                        <strong>Deprem İstatistikleri:</strong><br>
+                        Toplam: {} deprem<br>
+                        En büyük: M{:.1f}<br>
+                        M5.0+: {} deprem<br>
+                        M4.0+: {} deprem
+                    </div>
+                    '''.format(
+                        len(df),
+                        df['Büyüklük'].max(),
+                        len(df[df['Büyüklük'] >= 5.0]),
+                        len(df[df['Büyüklük'] >= 4.0])
+                    ))
+                    m.get_root().html.add_child(stat_box)
                 else:
                     st.error(f"API'den veri alınamadı. Durum kodu: {response.status_code}")
         except Exception as e:
             st.error(f"Veri çekerken bir hata oluştu: {e}")
     
-    elif api_option == 'Hava Durumu Verileri':
-        st.subheader('Türkiye Şehirleri Hava Durumu')
-        st.info("Bu bölüm gerçek bir API entegrasyonu için hazırlanmıştır. Gerçek bir projede OpenWeatherMap, Visual Crossing veya diğer hava durumu API'leri kullanılabilir.")
-        
+    elif api_option == 'Hava Durumu':
+        info_col1, info_col2 = st.columns([1, 3])
+        with info_col1:
+            st.markdown("### ☁️ Hava Durumu")
+        with info_col2:
+            st.markdown("Türkiye'deki büyük şehirlerin güncel hava durumu")
+            
         # Örnek şehirler
         cities = {
             'İstanbul': [41.0082, 28.9784],
@@ -236,13 +340,10 @@ elif data_option == 'Online veri kaynağı':
             'Bursa': [40.1885, 29.0610]
         }
         
-        # Örnek hava durumu verileri (gerçek bir API'den alınacak veriler)
+        # Örnek hava durumu verileri
         weather_data = []
         for city, coords in cities.items():
-            # Burada gerçek bir API çağrısı yapılabilir
-            # Örnek: response = requests.get(f"https://api.openweathermap.org/data/2.5/weather?lat={coords[0]}&lon={coords[1]}&appid={API_KEY}")
-            
-            # Örnek veri (gerçek projede API'den gelen veri kullanılır)
+            # Gerçek bir projede API'den gelen veriler kullanılır
             temp = random.randint(10, 35)
             conditions = random.choice(['Güneşli', 'Bulutlu', 'Yağmurlu', 'Karlı'])
             
@@ -255,7 +356,8 @@ elif data_option == 'Online veri kaynağı':
             })
         
         weather_df = pd.DataFrame(weather_data)
-        st.dataframe(weather_df)
+        with st.expander("📊 Hava Durumu Verileri", expanded=False):
+            st.dataframe(weather_df)
         
         # Hava durumu verilerini haritada gösterme
         for _, weather in weather_df.iterrows():
@@ -281,31 +383,31 @@ elif data_option == 'Online veri kaynağı':
             folium.Marker(
                 location=[weather['Enlem'], weather['Boylam']],
                 popup=popup_text,
+                tooltip=f"{weather['Şehir']}: {weather['Sıcaklık']}°C",
                 icon=folium.Icon(color=color, icon=icon)
             ).add_to(m)
     
-    elif api_option == 'OpenStreetMap POI Verileri':
-        st.subheader('İlgi Noktaları (POI)')
-        
-        # İlgi noktası tipi seçimi
-        poi_type = st.sidebar.selectbox(
-            'İlgi noktası tipi:',
-            ('Restoranlar', 'Oteller', 'Müzeler', 'Parklar')
-        )
-        
-        st.info(f'Bu bölüm {poi_type} için Overpass API veya Nominatim API entegrasyonuyla kullanılabilir.')
-        
-        # Örnek olarak, seçilen merkez çevresinde ilgi noktaları gösterelim
-        try:
-            # Gerçek bir projede: 
-            # url = f"https://nominatim.openstreetmap.org/search.php?q={poi_type}+near+{center_location[0]},{center_location[1]}&format=jsonv2"
+    elif api_option == 'İlgi Noktaları':
+        info_col1, info_col2 = st.columns([1, 3])
+        with info_col1:
+            st.markdown("### 🏙️ İlgi Noktaları")
+        with info_col2:
+            st.markdown("Seçilen konumun çevresindeki önemli noktalar")
             
+        # İlgi noktası tipi seçimi
+        with st.sidebar:
+            poi_type = st.selectbox(
+                'İlgi noktası tipi:',
+                ('Restoranlar', 'Oteller', 'Müzeler', 'Parklar')
+            )
+        
+        # Örnek ilgi noktaları
+        try:
             # Örnek veri
             pois = []
             poi_count = random.randint(5, 15)
             
             for i in range(poi_count):
-                # Merkez etrafında rastgele noktalar (gerçek projede API'den gelen veriler)
                 lat_offset = random.uniform(-0.05, 0.05)
                 lng_offset = random.uniform(-0.05, 0.05)
                 
@@ -336,7 +438,11 @@ elif data_option == 'Online veri kaynağı':
                 })
             
             poi_df = pd.DataFrame(pois)
-            st.dataframe(poi_df)
+            with st.expander(f"📊 {poi_type} Listesi", expanded=False):
+                st.dataframe(poi_df)
+            
+            # İlgi noktaları kümesi oluştur
+            marker_cluster = folium.plugins.MarkerCluster(name=poi_type).add_to(m)
             
             # İlgi noktalarını haritada gösterme
             for _, poi in poi_df.iterrows():
@@ -361,31 +467,49 @@ elif data_option == 'Online veri kaynağı':
                 folium.Marker(
                     location=[poi['Enlem'], poi['Boylam']],
                     popup=popup_text,
+                    tooltip=poi['İsim'],
                     icon=icon
-                ).add_to(m)
+                ).add_to(marker_cluster)
             
-            st.success(f"Toplam {len(poi_df)} adet {poi_type.lower()} görüntüleniyor")
         except Exception as e:
             st.error(f"Veri gösterilirken bir hata oluştu: {e}")
 
+# Ekstra harita eklentileri
+folium.plugins.Fullscreen(
+    position="topright",
+    title="Tam Ekran",
+    title_cancel="Çık",
+    force_separate_button=True
+).add_to(m)
+
+folium.plugins.LocateControl(
+    position="topright",
+    strings={"title": "Konumumu bul"},
+    icon="fa fa-map-marker"
+).add_to(m)
+
+# Harita ölçeği
+folium.plugins.MeasureControl(
+    position="bottomleft",
+    primary_length_unit="meters",
+    secondary_length_unit="kilometers",
+    primary_area_unit="sqmeters",
+    secondary_area_unit="hectares"
+).add_to(m)
+
 # Harita katmanları ekle
-folium.LayerControl().add_to(m)
+folium.LayerControl(collapsed=True).add_to(m)
 
-# Haritayı göster
-st.subheader('İnteraktif Harita')
-folium_static(m)
+# Haritayı göster (tam ekran)
+folium_static(m, width=1500, height=750)
 
-# Ek özellikler
-st.subheader('Ek Bilgiler')
-st.write("""
-Bu uygulamayı geliştirmek için yapabilecekleriniz:
-- Haritaya çizgi ve poligon ekleyebilirsiniz
-- Farklı veri kaynakları kullanabilirsiniz
-- Isı haritası (heatmap) ekleyebilirsiniz
-- Gerçek zamanlı veri görselleştirebilirsiniz
-- Coğrafi analizler yapabilirsiniz
-""")
-
-# Uygulama hakkında bilgi
-st.sidebar.markdown('---')
-st.sidebar.info('Bu uygulama Streamlit, Folium ve Pandas kullanılarak geliştirilmiştir.')
+# Uygulamayla ilgili bilgiler
+with st.sidebar:
+    st.markdown('---')
+    st.info('Bu harita uygulaması, Streamlit ve Folium kullanılarak geliştirilmiştir.')
+    
+    # Kaynak kod bağlantısı
+    st.markdown("[Kaynak Kodu Görüntüle](https://github.com/)")
+    
+    # Telif hakkı
+    st.markdown("© 2025 Web Map Project")
