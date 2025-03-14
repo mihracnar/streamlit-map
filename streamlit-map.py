@@ -58,6 +58,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Oturum durumu (ayarları saklamak için)
+if 'basemap' not in st.session_state:
+    st.session_state.basemap = "OpenStreetMap"
+if 'zoom' not in st.session_state:
+    st.session_state.zoom = 6
+if 'data_option' not in st.session_state:
+    st.session_state.data_option = "Yok"
+
 # Basemap seçenekleri
 basemap_options = [
     "OpenStreetMap",
@@ -77,10 +85,12 @@ with st.sidebar:
     st.title("🗺️ Harita Ayarları")
     
     # Basemap seçimi
-    basemap = st.selectbox("Harita Türü:", basemap_options, index=0)
+    basemap = st.selectbox("Harita Türü:", basemap_options, index=basemap_options.index(st.session_state.basemap))
+    st.session_state.basemap = basemap
     
     # Zoom seviyesi
-    zoom = st.slider("Zoom Seviyesi:", 1, 20, 6)
+    zoom = st.slider("Zoom Seviyesi:", 1, 20, st.session_state.zoom)
+    st.session_state.zoom = zoom
     
     # Ek Katmanlar
     st.subheader("Katmanlar")
@@ -98,22 +108,41 @@ with st.sidebar:
     st.subheader("Veri")
     data_option = st.radio(
         "Veri Kaynağı:",
-        ["Yok", "Depremler", "Ülke Sınırları"]
+        ["Yok", "Depremler", "Ülke Sınırları"],
+        index=["Yok", "Depremler", "Ülke Sınırları"].index(st.session_state.data_option)
     )
+    st.session_state.data_option = data_option
     
     if data_option == "Depremler":
-        days = st.slider("Son kaç gün:", 1, 30, 7)
-        magnitude = st.slider("Min büyüklük:", 2.5, 8.0, 4.5, 0.5)
+        if 'eq_days' not in st.session_state:
+            st.session_state.eq_days = 7
+        if 'eq_magnitude' not in st.session_state:
+            st.session_state.eq_magnitude = 4.5
+            
+        days = st.slider("Son kaç gün:", 1, 30, st.session_state.eq_days)
+        magnitude = st.slider("Min büyüklük:", 2.5, 8.0, st.session_state.eq_magnitude, 0.5)
+        
+        st.session_state.eq_days = days
+        st.session_state.eq_magnitude = magnitude
     
     elif data_option == "Ülke Sınırları":
+        if 'country' not in st.session_state:
+            st.session_state.country = "Turkey"
+            
         country = st.selectbox(
             "Ülke:",
-            ["Turkey", "United States", "Germany", "France", "Italy", "Spain", "Japan", "China"]
+            ["Turkey", "United States", "Germany", "France", "Italy", "Spain", "Japan", "China"],
+            index=["Turkey", "United States", "Germany", "France", "Italy", "Spain", "Japan", "China"].index(st.session_state.country)
         )
+        st.session_state.country = country
     
-    # Haritayı sıfırla
+    # Haritayı sıfırla (modern Streamlit API kullanıyor)
     if st.button("🔄 Haritayı Sıfırla", use_container_width=True):
-        st.experimental_rerun()
+        # Modern Streamlit için rerun
+        st.session_state.basemap = "OpenStreetMap"
+        st.session_state.zoom = 6
+        st.session_state.data_option = "Yok"
+        st.rerun()  # experimental_rerun yerine modern API
 
 # Ana container - harita için
 map_container = st.container()
@@ -146,29 +175,48 @@ with map_container:
         
         # Verileri Ekle
         if data_option == "Depremler":
-            m.add_earthquake(magnitude, days, name=f"M{magnitude}+ Son {days} Gün Depremler")
+            try:
+                m.add_earthquake(st.session_state.eq_magnitude, st.session_state.eq_days, 
+                                name=f"M{st.session_state.eq_magnitude}+ Son {st.session_state.eq_days} Gün Depremler")
+            except Exception as e:
+                st.warning(f"Deprem verileri eklenirken bir sorun oluştu. Hata: {e}")
         
         elif data_option == "Ülke Sınırları":
-            m.add_geojson(
-                f"https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
-                layer_name="Ülke Sınırları",
-                style={
-                    "color": "blue",
-                    "weight": 2,
-                    "fillOpacity": 0.1
-                },
-                hover_style={
-                    "fillOpacity": 0.7,
-                    "fillColor": "yellow"
-                }
-            )
+            try:
+                m.add_geojson(
+                    f"https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+                    layer_name="Ülke Sınırları",
+                    style={
+                        "color": "blue",
+                        "weight": 2,
+                        "fillOpacity": 0.1
+                    },
+                    hover_style={
+                        "fillOpacity": 0.7,
+                        "fillColor": "yellow"
+                    }
+                )
+            except Exception as e:
+                st.warning(f"Ülke sınırları eklenirken bir sorun oluştu. Hata: {e}")
         
         # Katman kontrolü
         if layercontrol:
             m.add_layer_control()
         
-        # Tam ekran harita
-        m.to_streamlit(height=800)
+        # Haritayı gösterme denemeleri - farklı alternatifler sunuyor
+        try:
+            # İlk deneme - to_streamlit metodu
+            m.to_streamlit(height=800)
+        except Exception as e1:
+            st.warning(f"Birincil harita gösterimi başarısız oldu. Alternatif yöntem deneniyor. Hata: {e1}")
+            try:
+                # İkinci deneme - daha eski API
+                import folium
+                from streamlit_folium import folium_static
+                folium_map = m.to_folium()
+                folium_static(folium_map, width=1400, height=800)
+            except Exception as e2:
+                st.error(f"Harita gösterimi başarısız. Hata: {e2}")
         
     except Exception as e:
         st.error(f"Leafmap hatası: {e}")
